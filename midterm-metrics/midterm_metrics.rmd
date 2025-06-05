@@ -1,0 +1,1349 @@
+---
+title: "Midterm Project"
+author: "Rachel Kim"
+output:
+    html_document:
+        df_print: paged
+        toc: true
+        toc_depth: 3
+        toc_float:
+            collapsed: false
+        theme: united
+        highlight: textmate
+editor_options: 
+  chunk_output_type: console
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include = FALSE, warning = FALSE, message = FALSE}
+options(htmltools.dir.version = FALSE)
+knitr::opts_chunk$set(
+    include = TRUE,
+    message = FALSE,
+    warning = FALSE,
+    cache = FALSE
+)
+```
+
+## Logistics
+
+* ***DEADLINE***: The midterm is due before April 16th (2025), 23h59. Penalty for late work is -1 point per day late. 
+* You can do this homework in groups of **two**.
+* This homework has a total of 20 points. The number of points for each section is clearly indicated in the section and/or subsection headings.
+* You need to hand in this `.Rmd` file  on Moodle together with the `.html` file - that is produced when you click on the "Knit" button. If you are having issues knitting your file do get in touch (and **knit regularly to make sure everything is working properly**).
+Your files must be named "midterm_metrics_name1_name2.Rmd" if you are in group or midterm_metrics_name1.Rmd" otherwise.
+* We left code blocks in this `.Rmd` file for you to fill out. Just put your code within the marked region, and click the *Knit* button in RStudio, just above this script, to see the generated HTML output. Knit it now, before you add any code to see how nice the output looks like.
+* Whenever we give you a chunk of code with code already written, you need to replace `eval = FALSE` by `eval = TRUE` in the chunk "header". This will make sure that the chunk is 'evaluated' (i.e., that the code runs) when you knit the document. 
+* FYI a code block looks like this:
+```{r qx.x, echo = TRUE, eval =  FALSE}
+# code goes here
+```
+
+-   **Do NOT delete the \`\`\`{r} and \`\`\`**; they separate the code
+    chunk from text.
+-   You can find a nice intro to Rmarkdown (`.Rmd`)
+    [here](https://rmarkdown.rstudio.com/authoring_quick_tour.html).
+-   Questions marked with a red star
+    (<span style="color: red;">\*</span>) are the ones we will build on
+    progressively to clean the data until it is ready for the regression
+    analysis. Other questions are side quests, which you don't need to
+    answer to get to the regressions.
+-   We have added a link to a clean dataset just before the regression
+    analysis part. If there are necessary questions you have not managed
+    to do, you can start from this clean data instead of using your own.
+-   ***All datafiles for the midterm can be found in the dropbox folder***: <https://www.dropbox.com/scl/fo/gbjsff4ywixnw7wz0kke7/h?rlkey=xyxm2mqoh8pfgglw2ytsujtyz&dl=0>
+
+
+
+# 2020 US Presidential Elections - Analysis of the Results
+
+This midterm project consists in one long analysis of data from the 2020
+Presidential elections in the United States.
+
+You will be asked to download the data from its original source, just
+like you would if you were to undertake this task by yourself. You will
+use everything we've learned so far: importing (un-tidy) data;
+summarizing, visualizing and tidying it; running regressions for
+different variables; and thinking about whether these associations can
+be interpreted causally. In the process, you will also learn 2 useful
+operations: merging 2 (or more) datasets together, and "reshaping" data
+from wide to long format. Don't worry we will work you through how to do
+all of this.
+
+We hope you find this project interesting and useful. Now let's get
+going!
+
+## Loading packages
+
+It's good practice to load all the packages you will need in the same
+place.
+
+(Once packages are installed, remember to set `eval = FALSE` to `eval = TRUE` in the chunk below.)
+
+```{r load packages, eval = TRUE}
+# Load all the packages you need here
+# Don't write the install.packages() code here. Run that code in the console.
+library(magrittr)
+library(readxl)
+library(readr)
+library(tidyverse)
+library(janitor)
+library(sf)
+library(tmap)
+library(skimr)
+library(jtools)
+library(rmapshaper)
+library(huxtable)
+```
+
+## Loading the Data [0.5 points]
+
+Download the data from November 2020 US presidential elections from
+here:
+
+> <https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/VOQCHQ#>
+
+Scroll down, click on the download icon (Access File) next to the second file
+(countypres_2000-2020.tab), and select "Comma Separated Values (Original
+File Format)".
+
+This is straight from the MIT Election Data + Science lab, which
+collects and shares election data from the United States. This dataset
+contains election results aggregated at the county level.
+[Counties](https://en.wikipedia.org/wiki/County_(United_States)) are
+small geographic units in the United States.
+
+1<span style="color: red;">\*</span>. Load the file you downloaded into
+RStudio in an object called `elections`. You can use the `read.csv`
+function.
+
+```{r q1.1, echo = TRUE, eval = TRUE}
+elections <- read.csv("countypres_2000-2020.csv")
+```
+
+## Understanding what the dataset contains [1 point]
+
+1\. Use `tail` to display the last 10 rows of the dataset
+
+```{r q2.1, echo = TRUE, eval =  FALSE}
+tail(elections)
+```
+
+2\. What years are included in our data? What's inside the enigmatic
+"mode" variable? Tabulate the variables `year` and `mode` separately to
+find out.
+
+```{r q2.2, echo = TRUE, eval =  FALSE}
+table(elections$year)
+table(elections$mode)
+```
+
+**years: 2000, 2004, 2008, 2012, 2016, 2020**
+**mode: ELECTION DAY, ABSENTEE, EARLY VOTING, EARLY VOTE, PROVISIONAL, FAILSAFE, ONE STOP, etc.**
+
+3\. What is the unit of observation? In other words, what does each row
+correspond to?
+
+**Each row corresponds to an individual vote cast in a specific election year, country, and a voting mode.**
+
+4\. How many variables are there?
+
+```{r q2.4, echo=TRUE, eval= FALSE}
+ncol(elections)
+```
+
+**12**
+
+5\. How many rows are there?
+
+```{r q2.5, echo=TRUE, eval= FALSE}
+nrow(elections)
+```
+
+**72617**
+
+## Filtering the data and exploring further [1 points]
+
+1<span style="color: red;">\*</span>. This data contains the results of
+all presidential elections from 2000 to 2020. We only want to analyse
+the 2020 results. Use the `filter` function to keep only the
+observations that concern the 2020 election. Create a new object
+`elections_2020` for this task.
+
+```{r q3.1, echo = TRUE, eval = TRUE}
+library(dplyr)
+elections_2020 <- elections %>% 
+  filter(year == 2020)
+```
+
+
+2\. Our main variable of interest is `candidatevotes`. In how many
+counties did a candidate get less than 10 votes (less or equal 10 )? How many different candidates were concerned?
+
+```{r q3.2, echo = TRUE, eval =  FALSE}
+elections_2020 %>% 
+  filter(candidatevotes <= 10) %>% 
+  count
+```
+
+**4805**
+
+3\. We saw previously that there were different modes of voting recorded
+in the data, and that one category is "Total". This could be worrying:
+are we counting ballots twice? Could a ballot appear both in the "in
+person" and "total" categories? Cross-tabulate the `mode` variable with
+`state`, to understand whether the modes of voting are the same in all
+States. (Use the `table` function)
+
+```{r q3.4, echo = TRUE, eval =  FALSE}
+table(elections_2020$mode, elections_2020$state)
+```
+
+As you can see, in some States the `mode` variable takes exclusively the
+value "TOTAL" (in Alabama for instance). In those States, we know the
+total number of votes obtained by candidates in each county. In other
+States, we do not have the total number of votes, but only a number
+disaggregated by voting method (in Arizona for instance).
+
+All of those situations are fine, since they mean ballots are not
+counted twice.
+
+However there is one worrying case: Utah. In this State, we observe both
+the total number of votes, and the number of votes by mail, election day
+voting, and early voting. By looking more closely at the data, you can
+see that in the Salt Lake county (code 49035), we have the number of
+votes received early; on election day; and by mail. For all other
+counties, the ballot count for these voting modes is zero, and we only
+observe the "total" ballot count. If you wanted to be convinced more
+formally that this is true, you could run the following script:
+
+```{r q3.5, echo = TRUE, eval = FALSE}
+elections_2020 %>% 
+  filter(state=="UTAH") %>% #keep only UTAH observations
+  mutate(mode_vote_total = (mode=="TOTAL" & candidatevotes!=0), #create a dummy if we observe a ballot in the "total" category
+         mode_vote_other = (mode!="TOTAL" & candidatevotes!=0)) %>% # create a dummy if we observe a ballot in any other voting category
+  group_by(county_fips, county_name) %>%  # group by county
+  summarise(mode_vote_total = max(mode_vote_total), #create a dummy if for any candidate in the county we observe a ballot in the "total" category
+            mode_vote_other = max(mode_vote_other)) %>% #create a dummy if for any candidate in the county we observe a ballot in any other voting category
+  View() #visualise the resulting dataset
+
+#You can see that in no county do we observe a ballot both in "total" and in another category!
+```
+
+So it holds true that we never count a ballot twice: in every county,
+either we count it in the "total" category, or we count it in one of the
+categories associated to specific voting method. This is good news!
+
+## Checking quality of the data [2 points]
+
+1\. In States like Arizona where we don't have the total number of
+ballots, it is not clear that the voting modes for which we have data
+cover all voting methods available.
+
+For instance, in Kentucky we only have the number of ballots cast on
+election day. A quick search online shows that early voting is possible
+in this State, although it is heavily restricted. It is hence very
+likely that some ballots are missing in our data.
+
+Now that we noticed this feature of the data, we want to check how big
+of an issue this is: how many votes are not counted in our data? Can we
+still reasonably use it, or is its quality too bad?
+
+To answer this question, we will compare the total number of votes by
+State in our dataset to the official number provided by the Federal
+Government.
+
+Create a new object called `elections_2020_state_totals`, with two
+variables: `state_po` and `sum_votes_state`: the sum of `candidatevotes`
+by State. Hint: you should group your data by `state_po`, and then use
+`summarise`. You should also disregard missing values when you compute
+the sum of `candidatevotes`: find out the argument of the `sum` function
+which lets you do that.
+
+```{r q4.1, echo = TRUE, eval =  FALSE}
+elections_2020_state_totals <- elections_2020 %>% 
+  group_by(state_po) %>% 
+  summarise(sum_votes_state = sum(candidatevotes))
+```
+
+2\. The official election data in the US is provided by the Federal
+Election Commission, in [this
+document](https://www.fec.gov/resources/cms-content/documents/2020presgeresults.pdf).
+Notice that it is in pdf format. We already extracted it into an excel
+file for you.
+
+> Download the file
+> [here](https://www.dropbox.com/s/nnzu2i0xmpovqt0/state_votes.xlsx?dl=1)
+
+Import it into a new object named `official_state_votes`, using the
+`read_excel` function from the `readxl` package.
+
+```{r q4.2, echo = TRUE, eval = FALSE}
+library(readxl)
+official_state_votes <- read_excel("state_votes.xlsx")
+```
+
+3\. Both your `elections_2020_state_totals` and `official_state_votes`
+should have 51 observations, one per State in the US + Washington DC.
+But now the official number of votes and the one from our dataset are in
+two different R objects. You could compare the numbers manually, but
+this would be a lot of work. Instead, we want to merge them into a
+single object.
+
+We will do this using the `left_join()` function from the `tidyverse`
+package.
+
+This is how `left_join()` works: `left_join(x,y)` will return all rows
+from `x` (very important!) and all columns from `x` and `y`. Rows in `x`
+with no match in `y` will have `NA` values in the new columns. Rows in
+`y` with no match in `x` will be discarded.
+
+The following cheatsheet might help you visualise the way the function
+works:
+<https://github.com/rstudio/cheatsheets/blob/master/data-transformation.pdf>.
+You can also find more details
+[here](https://dplyr.tidyverse.org/reference/mutate-joins.html).
+
+If nothing is specified, `left_join` will automatically detect the
+variables which have the same name in both datasets and use them to join
+the data. If your variables have different names in the datasets, you
+can specify
+`left_join(x,y, by=c("var1x" = "var1y", "var2x" = "var2y"))`. This will
+match variable `var1x` in `x` to `var1y` in `y` and `var2x` in `x` to
+`var2y` in `y`. (You can keep going, and join on more than two
+variables!)
+
+Create a new object called `elections_2020_state_comparison`, which is
+the `left_join` of `elections_2020_state_totals` (1st argument) and
+`official_state_votes` (2nd argument). Here, our identifying variables
+have different names, so we need to add the argument
+`by=c("state_po" = "state_short")`
+
+```{r q4.3, echo = TRUE, eval =  FALSE}
+elections_2020_state_comparison <- left_join(elections_2020_state_totals, official_state_votes, by=c("state_po" = "state_short"))
+```
+
+Congratulations, you have merged your first datasets! Easy right? :)
+
+4\. Compute the percentage difference between the official number of
+votes, and the sum of votes in our data by State:
+`(official votes - sum votes)/official votes*100`. What are the min, max
+and mean of this percentage difference?
+
+```{r q4.4, echo = TRUE, eval =  FALSE}
+elections_2020_state_comparison <- elections_2020_state_comparison %>% 
+  mutate(percent_diff = (official_total_votes - sum_votes_state)/official_total_votes*100)
+elections_2020_state_comparison %>%
+  summarise(
+    min_diff = min(percent_diff),
+    max_diff = max(percent_diff),
+    mean_diff = mean(percent_diff)
+  )
+```
+
+**min: -0.925, max: 0.545, mean: -0.044**
+
+If our election data contained the official number of votes per State,
+the difference would always be zero. Clearly, this is not the case: in
+some States our data has too few votes, in others it has too many.
+However, the difference is always very very small and should not
+dramatically change the final results obtained by each candidate.
+
+Still, the discrepancy is not easy to explain: the MIT lab collects
+official results from all the States and puts them together into a
+national file. It is not clear where the difference is coming from:
+maybe there was human error in data collection, maybe the results were
+updated in some States after a recount...
+
+Since the United States government itself does not provide official
+county-level results for the entire country, the only alternative to
+using the MIT data would be to start from State level official results.
+However, this would be a lot of work as we would have to find all the
+files, deal with format issues (many data files are still provided in
+pdf, for instance [in
+Kentucky](https://elect.ky.gov/results/2020-2029/Documents/2020%20General%20Election%20Results.pdf))
+and clean them all. It would be time consuming, and we would likely make
+more errors than the MIT lab!
+
+## Some more tidying [2.5 points]
+
+1\. Now that we have decided that our data was good enough, we still
+need to tidy it before we can use it. Make sure that the candidate name
+is always written with the same format by tabulating the `candidate`
+variable.
+
+```{r q5.1, echo = TRUE, eval =  FALSE}
+table(elections_2020$candidate)
+```
+
+2<span style="color: red;">\*</span>. Remember that we noticed earlier
+there were missing values in the `candidatevotes` and `totalvotes`
+variables.
+
+Run the following script to fix the issue (replace `eval = FALSE` by
+`eval = TRUE` below, so that the code is also run when you knit). This
+chunk of code:
+
+-   replaces `candidate_votes` by zero when it is missing
+-   replaces `total_votes_county` by the sum of votes in the county when
+    it is missing.
+
+Note that we create a new object, `elections_2020_clean`.
+
+The `ifelse` function works in the following way:
+`ifelse(test, value if test==TRUE, value if test==FALSE)`. For instance
+in the third line below, for each observation, if `candidatevotes` is
+missing then it is replaced by 0, otherwise it is not changed.
+
+```{r q5.2, echo = TRUE, eval=TRUE}
+elections_2020_clean <- elections_2020 %>%
+  group_by(county_fips) %>%
+  mutate(candidatevotes = ifelse(is.na(candidatevotes), 0, candidatevotes),
+         totalvotes = ifelse(is.na(totalvotes), sum(candidatevotes), totalvotes))
+```
+
+3<span style="color: red;">\*</span>. Clean some more the
+`elections_2020_clean` object by:
+
+-   Summarising the data so that the unit of observation is a candidate
+    in a county. To do this, you need to sum the number of votes
+    obtained for each candidate in each county, across all modes of
+    voting). Note: in order to keep all the variables, you will need to
+    use the following command
+    `group_by(state, state_po, county_name, county_fips, totalvotes, candidate)`.
+    If we only grouped by `county_fips, candidate`, we would "lose" all
+    the other "extra" variables that give us information about the
+    county (its name, its state, the number of votes, ...). If this is
+    not clear to you, simply run the code twice, once grouping by all
+    the variables, and once with `group_by(county_fips, candidate)`, and
+    see what happens!
+
+-   Creating a variable `pct_votes` which is equal to the percentage of
+    votes obtained by a candidate in a county: (number of votes obtained
+    by a candidate / total number of votes in county)\*100.
+
+-   Grouping the data by county (`county_fips`), and then use a
+    combination of `rank()` and `desc()` commands to compute the ranks
+    of each candidate within each county. You should create a variable
+    called `candidate_rank` which takes the value 1 for the candidate
+    who received the most vote in the county, 2 for the candidate who
+    received the second highest number of votes etc.
+
+-   Once you've ensured your code is correct, "ungroup" the data by
+    passing your object into the `ungroup()` function or by piping it.
+    This function does what it says: it removes grouping. This means
+    that it cancels the effect of your last `group_by`, and ensures that
+    the next functions you use will not be applied by group.
+
+You can pipe all these commands together if you wish or proceed in
+several steps.
+
+```{r q5.3, echo = TRUE, eval = TRUE}
+elections_2020_clean <- elections_2020_clean %>%
+  group_by(state, state_po, county_name, county_fips, totalvotes, candidate) %>% 
+  summarise(votes = sum(candidatevotes), .groups = "drop") %>% 
+  mutate(pct_votes = votes / totalvotes * 100) %>% 
+  group_by(county_fips) %>% 
+  mutate(candidate_rank = rank(desc(votes))) %>% 
+  ungroup()
+```
+
+4\. Check that your variable `pct_votes` is actually a percentage (that
+it is comprised within 0 and 100). This is a safety check to make sure
+that there is no inconsistency in the data.
+
+```{r q5.4, echo = TRUE, eval = FALSE}
+elections_2020_clean %>%
+  filter(pct_votes < 0 | pct_votes > 100)
+# no rows are returned => `pct_votes` is good
+```
+
+## Map [3 points]
+
+Election data are probably better visualized using maps.
+
+In this section we will produce a map displaying Joe Biden and Donald Trump's 
+vote percentages in each county
+
+To produce the map you will need to install and load the `sf`, `tmap`
+and `rmapshaper` packages.
+
+Maps are tricky and very complicated objects. But to boil it down to the
+essential ingredients, you need a "shapefile" which is basically a file
+that contains the map onto which data will be plotted.
+
+This file is provided by the US census website
+[here](https://www2.census.gov/geo/tiger/GENZ2018/shp/cb_2018_us_county_500k.zip).
+However it is somewhat heavy, so to make your life easier, we have
+simplified it for you using the following commands. **Do NOT** touch nor
+run this chunk, and **do NOT** replace `eval = FALSE` by `eval = TRUE`.
+We've left it so you can see how we created the simplified shapefile you
+will be loading in the next question.
+
+```{r q6.0 simplifying code, echo = TRUE, eval = FALSE}
+county_shfl_full <- read_sf("path/cb_2018_us_county_500k/cb_2018_us_county_500k.shp")
+# where `path` corresponds to where the `cb_2018_us_county_500k` folder is located.
+county_shfl <- st_simplify(county_shfl_full, preserveTopology = FALSE, dTolerance = 1000) #simplify the map to make it less memory-heavy
+
+save(county_shfl, file="path/county_shfl.RData") #saving the object
+```
+
+You can download the resulting R object from this link: \>
+<https://www.dropbox.com/s/m8zq5e38imp2he1/county_shfl.RData?dl=1>
+
+1\. Let's load the `county_shfl.RData` file by using the `load()`
+function. Replace `eval = FALSE` by `eval = TRUE`.
+
+
+```{r q6.1 import shapefile, echo = FALSE, eval = TRUE}
+load("county_shfl.RData")
+```
+
+You should now have an object called `county_shfl` in your environment
+
+2\. FIPS codes are numbers which uniquely identify geographic areas in
+the US. Working with FIPS codes is always advisable when identifying
+areas, as names can be duplicates: there is an Aidar county in Kentucky
+and another one in Iowa.
+
+What is the county FIPS code of the "FLEMING" county in the
+`elections_2020_clean` data.frame? What are the State FIPS (`STATEFP`),
+county FIPS (`COUNTYFP`) and `GEOID` of the same county in the
+`county_shfl` data? Hint: in `county_shfl` the county's name is written
+"Fleming" and the variable containing county names is `NAME`.
+
+```{r q6.2, echo = TRUE, eval =  FALSE}
+elections_2020_clean %>% 
+  filter(county_name == "FLEMING") %>% 
+  select(state, county_name, county_fips)
+county_shfl %>% 
+  filter(NAME == "Fleming") %>%
+  select(STATEFP, COUNTYFP, GEOID, NAME)
+```
+
+**county FIPS code: 21069**
+**State FIPS (`STATEFP`): 21**
+**county FIPS (`COUNTYFP`): 069**
+**`GEOID`: 21069**
+
+3\. You might have noticed that the `county_fips` variable in our
+`elections_2020_clean` is actually made of the State FIPS code, followed
+by the county code.
+
+In `county_shfl`, we have a variable for the State FIPS code and a
+separate one for the county code. The variable containing the same code
+as in `elections_2020_clean` is actually called `GEOID`. This type of
+things is exactly why you always need to look inside your data: it would
+not have been obvious from the variable names.
+
+What is the type of `county_fips` in the `elections_2020_clean` data?
+What is the type of `GEOID` in `county_shfl`? Hint: use the `typeof`
+function.
+
+```{r q6.3, echo = TRUE, eval = FALSE}
+typeof(elections_2020_clean$county_fips)
+typeof(county_shfl$GEOID)
+```
+**integer, character**
+
+It is not the same! In order to merge the two datasets, we want
+`county_fips` to have the same type as in `GEOID` and be a character
+string instead.
+
+Furthermore, because it is stored as a numeric value there is no leading
+zero (the FIPS code "01001" is stored as 1001).
+
+The following script fixes this, and creates a new variable called
+`county_fips_clean`. Run the code and change `eval = FALSE` to
+`eval = TRUE` to make sure the code runs when you knit your document.
+
+We start by using the `as.character` function to convert the variable to
+a character string. Then, we use the `ifelse` function again. What this
+conditional statement says is: if the number of characters of the
+variable `county_fips_clean` is equal to 4, then add a "0" in front of
+this variable; otherwise do nothing.
+
+```{r q6.3 given, echo=TRUE, eval=TRUE}
+elections_2020_clean <- elections_2020_clean %>% 
+  mutate(county_fips_clean=as.character(county_fips), #convert county_fips to a character string
+         county_fips_clean=ifelse(nchar(county_fips_clean)==4,
+                            paste0("0", county_fips_clean),
+                            county_fips_clean)) #Add a leading zero when necessary: if there are only four characters to the FIPS code, it means that the leading 0 is missing
+```
+
+4\. How many different State FIPS codes are there in the `county_shfl`
+dataset? Hint: You can use a combination of the `length` and `unique`
+commands to count them.
+
+```{r q6.4, echo=TRUE, eval= FALSE}
+length(unique(county_shfl$STATEFP))
+```
+
+**56**
+
+5\. Our shapefile clearly contains the map for more than just the 50 US
+States + DC. By looking at the existing State codes
+[here](https://www.nrcs.usda.gov/wps/portal/nrcs/detail/?cid=nrcs143_013696),
+you can see that codes above 56 correspond to overseas territories.
+
+The final map we want to produce should only contain the 50 States + DC:
+we want to remove overseas territories. We also exclude Alaska and
+Hawaii for purely aesthetic reasons: including them zooms out the map
+too much. We could fix this problem by showing Alaska and Hawaii in a
+corner of the map but this is beyond the scope of the midterm.
+
+Filter `county_shfl_clean` to keep only observations such that:
+
+-   `STATEFP` is not equal to "02" (Alaska) or "15" (Hawaii)
+-   and `as.numeric(STATEFP)` is lower or equal to 56 (note that because
+    State FIPS is stored as a character, we have to convert it to a
+    numeric before evaluating whether it is below 56)
+
+Create a new object called `county_shfl_clean`.
+
+```{r q6.5 given, echo=TRUE, eval=TRUE}
+county_shfl_clean <- county_shfl %>% 
+  filter((STATEFP != "02" & STATEFP != "15") & (as.numeric(STATEFP) <= 56))
+```
+
+Furthermore, some counties' FIPS have changed over the years, and they
+differ in our two datasets. The following script will fix all these
+inconsistencies for you. The `case_when` function is similar to
+`ifelse`. Here it modifies the variable `county_fips_clean`, such that :
+
+-   if `county_fips_clean` was equal to "46113", it now takes the value
+    "46102"
+-   if `state_po` is equal to "DC", `county_fips_clean` now takes the
+    value "11001"
+-   else `county_fips_clean` keeps the same value.
+
+Remember to replace `eval = FALSE` with `eval = TRUE`.
+
+```{r q6.5 given part 2, echo=TRUE, eval=TRUE}
+elections_2020_clean <- elections_2020_clean %>% 
+  mutate(county_fips_clean = case_when(
+    county_fips_clean=="46113" ~ "46102",
+    state_po=="DC" ~ "11001",
+    TRUE ~ county_fips_clean))
+```
+
+6\. Use `left_join` to merge `county_shfl_clean` (first argument) and
+`elections_2020_clean` (second argument). Create a new object called
+`elections_2020_map` for this question.
+
+Here, our identifying variables have different names: `GEOID` in
+`county_shfl_clean` (first argument) and `county_fips_clean` in
+`elections_2020_clean` (second argument). Look at the help file or go
+back to question 3 of the "Checking quality" section to see how to
+specify the by argument.
+
+```{r q6.6, echo=TRUE, eval= TRUE}
+elections_2020_map <- left_join(county_shfl_clean, elections_2020_clean, by=c("GEOID" = "county_fips_clean"))
+```
+
+### Map: Candidates' vote percentage
+
+7\. Create a heat map of Biden and Trump's percentage of the vote by
+county, using the following code (change `eval = FALSE` to `eval = TRUE`
+just below so that the html file displays the map):
+
+```{r q6.7 map1 tmap, echo = TRUE, eval = TRUE}
+tmap_mode("view") # we want an interactive map
+elections_2020_map %>%
+             # only keep Trump and Biden
+             filter(candidate %in% c("DONALD J TRUMP", "JOSEPH R BIDEN JR")) %>% 
+    tm_shape() +
+    tm_borders(col="white", lwd = 0.3) + # white and thin (line width) borders
+    tm_fill(
+        col = "pct_votes",   # variable to be mapped
+        title = "% of votes",   # legend title
+        id = "county_name",   # information to display when mouse hovers over a departement
+        popup.vars = c("Vote %:" = "pct_votes")) + # variable to display in popup window
+    tm_facets(by = "candidate") # create one map per selected candidate
+```
+
+Wasn't that easy (well, sort of ;) ) ! Hover over the
+counties with your mouse. The name of the county will show up. If you
+click on a county you will get the vote percentage received by the
+candidate. Isn't that cool!
+
+## Tidying covariate data [2 points]
+
+A covariate is simply the name we give to variables containing
+characteristics of our unit of interest (here, characteristic of
+counties). A covariate can be of direct interest if it is an independent
+variable in the model. It can also be an extra characteristic we add to
+the regression to avoid the omitted variable bias.
+
+> Download county-level social data from the American Community Survey
+> (ACS) here:
+> <https://data.census.gov/table/ACSDP5Y2019.DP02?q=DP02&g=010XX00US$0500000>
+
+Click "DOWNLOAD TABLE" and select the year 2019 for "ACS 5-Year
+Estimates Data Profiles" and download. Unzip the folder once downloaded.
+Copy the content of the unzipped folder into a folder named `acs_soc` that you create within your working directory.
+
+<!-- [For future reference to find table: -->
+
+<!-- SELECTED SOCIAL CHARACTERISTICS IN THE UNITED STATES -->
+
+<!-- Survey/Program: American Community Survey -->
+
+<!-- TableID: DP02] -->
+
+> Download county-level economic data from the American Community Survey
+> (ACS) here:
+> <https://data.census.gov/table/ACSDP5Y2019.DP03?q=DP03&g=010XX00US$0500000>
+
+Click "DOWNLOAD TABLE" and select the year 2019 for "ACS 5-Year
+Estimates Data Profiles" and download. Unzip the folder once downloaded. 
+Copy the content of the unzipped folder into a folder named `acs_eco` that you create within your working directory.
+
+<!-- [For future reference to find table: -->
+
+<!-- SELECTED ECONOMIC CHARACTERISTICS -->
+
+<!-- Survey/Program: American Community Survey -->
+
+<!-- TableID: DP03] -->
+
+> Download county-level demographic data from the American Community Survey
+> (ACS) here:
+><https://data.census.gov/table/ACSDP5Y2019.DP05?q=DP05&g=010XX00US$0500000>
+
+Click "DOWNLOAD TABLE" and select the year 2019 for "ACS 5-Year
+Estimates Data Profiles" and download. Unzip the folder once downloaded. 
+Copy the content of the unzipped folder into a folder named `acs_dem` that you create within your working directory.
+
+<!-- [For future reference to find table: -->
+
+<!-- Demographic and housing estimates -->
+
+<!-- Survey/Program: American Community Survey -->
+
+<!-- TableID: DP05] -->
+
+1<span style="color: red;">\*</span> Once you have finished downloading and copying the files, you should have three files in each of the folders `acs_soc`, `acs_eco`, `acs_dem` (placed within your working directory).
+In each case, the csv file whose name ends with `-Data.csv` contains the data values, while the csv file whose name ends with `-Column-Metadata.csv` contains variable labels (describing each variable).   
+
+Let us first import the content of the six files as follows:
+
+(Set `eval=FALSE` to `eval = TRUE`.)
+
+```{r q7.0.1, echo=TRUE, eval=TRUE}
+acs_eco_2019 <- read.csv("acs_eco/ACSDP5Y2019.DP03-Data.csv") # loading ACS economic data
+acs_soc_2019 <- read.csv("acs_soc/ACSDP5Y2019.DP02-Data.csv") # loading ACS social data
+acs_dem_2019 <- read.csv("acs_dem/ACSDP5Y2019.DP05-Data.csv") # loading ACS demographic data
+acs_eco_2019_meta <- read.csv("acs_eco/ACSDP5Y2019.DP03-Column-Metadata.csv") # loading variable definitions for ACS economic data
+acs_soc_2019_meta <- read.csv("acs_soc/ACSDP5Y2019.DP02-Column-Metadata.csv") # loading variable definitions for ACS social data
+acs_dem_2019_meta <- read.csv("acs_dem/ACSDP5Y2019.DP05-Column-Metadata.csv") # loading variable definitions for ACS demographic data
+```
+
+In the regression analysis we are interested in the association between the percentage unemployment rate in a county, which we will name `pct_unemp_rate` and Trump's percentage vote share. Besides the county-level unemployment rate `pct_unemp_rate`, we would like to use the following county-level characteristics in our regression:
+
+-   economic characteristics:
+
+    -   average income: we will name it `mean_income`
+    
+    -   percentage share of manufacturing: we will name it `pct_manufac`
+    
+-   educational attainment: 
+
+    -   percentage share of individuals with a bachelor degree: we will name it `pct_bachelor`
+    
+-   demographic characteristics:
+
+    -   percentage share of African Americans: we will name it `pct_afam`
+    
+    -   percentage share of individuals above 62: we will name it `pct_age_above_62`
+    
+    -   percentage share of females: we will name it `pct_female`
+    
+    -   number of households in the county: we will name it `n_hhs`
+    
+    -   average household size in the county: we will name it `avgsize_hhs`
+
+After some search, one can extract the variables of interest by running the following code:
+
+(Set `eval=FALSE` to `eval = TRUE`.)
+
+```{r q7.0.2, echo=TRUE, eval=TRUE}
+# appending together metadata
+acs_eco_2019_meta %<>% 
+  mutate(source = "ECO19")  
+acs_soc_2019_meta %<>% 
+  mutate(source = "SOC19")  
+acs_dem_2019_meta %<>% 
+  mutate(source = "DEM19") 
+acs_2019_meta <- 
+  rbind(acs_soc_2019_meta, 
+        acs_eco_2019_meta, 
+        acs_dem_2019_meta) %>% 
+  filter(!(Column.Name %in% c("GEO_ID", "NAME")))
+
+# extracting label elements
+max_excl_count <- acs_2019_meta %>%
+  mutate(Label_excl_count = str_count(Label,"\\!\\!")) %>%
+  select(Label_excl_count) %>% 
+  unique() %>% 
+  slice_max(Label_excl_count) %>% 
+  pull()
+
+acs_2019_meta %<>%
+  mutate(Label_use = paste0(Label,"!!"))
+
+for (i in 1:max_excl_count) {
+  acs_2019_meta %<>%
+  mutate(Label_temp = str_sub(Label_use, 1, (str_locate(Label_use, "\\!\\!")[,1] - 1))) %>% 
+  mutate(Label_use = str_sub(Label_use, (str_locate(Label_use, "\\!\\!")[,1] + 2), nchar(Label_use))) %>% 
+  {eval(parse(text = paste0("rename(.,Label",as.character(i)," = Label_temp)")))} %>% 
+  mutate(Label_temp = NULL)
+}
+
+
+# identifying variables of interest
+# number of households
+n_hhs_var <- 
+  acs_2019_meta %>% 
+  filter(Label1 == "Estimate",
+         Label2 == "HOUSEHOLDS BY TYPE",
+         is.na(Label4)) %>% 
+  unique() %>% 
+  mutate(new_var_name = "n_hhs") %>% 
+  select(Column.Name, new_var_name)
+# avg household size
+avgsize_hhs_var <- 
+  acs_2019_meta %>% 
+  filter(Label1 == "Estimate",
+         Label2 == "HOUSEHOLDS BY TYPE",
+         Label4 == "Average household size") %>% 
+  unique() %>% 
+  mutate(new_var_name = "avgsize_hhs") %>% 
+  select(Column.Name, new_var_name)
+# percentage share of African Americans
+afam_var <- 
+  acs_2019_meta %>% 
+  filter(Label1 == "Percent",
+         Label2 == "Race alone or in combination with one or more other races",
+         Label4 == "Black or African American") %>% 
+  unique() %>% 
+  mutate(new_var_name = "pct_afam") %>% 
+  select(Column.Name, new_var_name)
+# percentage share of females
+female_var <- 
+  acs_2019_meta %>% 
+  filter(Label1 == "Percent",
+         Label2 == "SEX AND AGE",
+         Label4 == "Female") %>% 
+  unique() %>% 
+  mutate(new_var_name = "pct_female") %>% 
+  select(Column.Name, new_var_name)
+# percentage share of individuals above 62
+age_var <- 
+  acs_2019_meta %>% 
+  filter(Label1 == "Percent",
+         Label2 == "SEX AND AGE",
+         Label4 == "62 years and over") %>% 
+  unique() %>% 
+  mutate(new_var_name = "pct_age_above_62") %>% 
+  select(Column.Name, new_var_name)
+# percentage share of individuals with Bachelor's degree
+bachelor_var <- 
+  acs_2019_meta %>% 
+  filter(Label1 == "Percent",
+         Label2 == "EDUCATIONAL ATTAINMENT",
+         Label4 == "Bachelor's degree or higher") %>% 
+  unique() %>% 
+  mutate(new_var_name = "pct_bachelor") %>% 
+  select(Column.Name, new_var_name)
+# percentage unemployment rate
+unemp_var <- 
+  acs_2019_meta %>% 
+  filter(Label1 == "Percent",
+         Label2 == "EMPLOYMENT STATUS",
+         Label4 == "Unemployment Rate") %>%
+  mutate(new_var_name = "pct_unemp_rate") %>% 
+  select(Column.Name, new_var_name)
+# average income in dollars
+income_var <- 
+  acs_2019_meta %>% 
+  filter(Label1 == "Estimate",
+         Label2 == "INCOME AND BENEFITS (IN 2019 INFLATION-ADJUSTED DOLLARS)",
+         Label4 == "Mean household income (dollars)") %>% 
+  mutate(new_var_name = "mean_income") %>% 
+  select(Column.Name, new_var_name)
+# percentage share of manufacturing
+manufac_var <- 
+  acs_2019_meta %>% 
+  filter(Label1 == "Percent",
+         Label2 == "INDUSTRY",
+         Label4 == "Manufacturing") %>% 
+  mutate(new_var_name = "pct_manufac") %>% 
+  select(Column.Name, new_var_name)
+
+selected_vars <- 
+  rbind(unemp_var,
+        bachelor_var, 
+        income_var,
+        manufac_var, 
+        age_var, 
+        female_var,
+        afam_var, 
+        n_hhs_var, 
+        avgsize_hhs_var)
+selected_vars
+
+
+```
+
+We thus obtained a `data.frame` object called `selected_vars` which contains the variable names in the ACS and the corresponding name we wish to use later on.
+
+Let us now turn to extracting the values of interest from the data files `acs_eco_2019`, `acs_soc_2019`, `acs_dem_2019`. 
+
+1\. The first row / observation of each of the three `data.frame`s (`acs_eco_2019`, `acs_soc_2019`, `acs_dem_2019`) contains the ACS variable labels. In the code chunk below, remove the first line in each case. (Pay attention not to run the code you write more than once.)
+
+```{r q7.1, echo = TRUE, eval =  FALSE}
+acs_eco_2019 <- acs_eco_2019[-1, ]
+acs_soc_2019 <- acs_soc_2019[-1, ]
+acs_dem_2019 <- acs_dem_2019[-1, ]
+```
+
+Now let us merge the three files together and let us select and rename the variables of interest by running the following code:
+
+(Set `eval=FALSE` to `eval = TRUE`.) 
+
+```{r q7.2.1, echo = TRUE, eval = TRUE}
+# merging data
+acs_2019 <- 
+  acs_eco_2019 %>% 
+  left_join(y = acs_soc_2019,
+            by = c("NAME","GEO_ID")) %>% 
+  left_join(y = acs_dem_2019,
+            by = c("NAME","GEO_ID"))
+
+#selecting covariates of interest
+acs_2019_covariates <-
+  acs_2019[,c("GEO_ID", "NAME", selected_vars$Column.Name)] 
+    
+for (i in 1:length(selected_vars$Column.Name)) {
+  acs_2019_covariates %<>% 
+    {eval(parse(text = paste0("rename(., ",selected_vars$new_var_name[i]," = ",selected_vars$Column.Name[i],")")))} %>% 
+    {eval(parse(text = paste0("mutate(., ",selected_vars$new_var_name[i]," = as.numeric(",selected_vars$new_var_name[i],"))")))}
+}
+
+
+```
+
+We thus obtain a `data.frame` called `acs_2019_covariates`.
+
+2\. We would like to define the following variables: 
+
+-   `county_size_thousands` equal to `n_hhs * avgsize_hhs / 1000` (number of households multiplied by average household size divided by 1000)
+
+-   `mean_income_thousands` equal to `mean_income / 1000` (mean household income divided by 1000)
+
+Use `mutate` to add these new variables to the `data.frame` called `acs_2019_covariates`.
+
+```{r q7.2, echo=TRUE, eval= TRUE}
+acs_2019_covariates <- acs_2019_covariates %>% 
+  mutate(county_size_thousands = n_hhs * avgsize_hhs / 1000, mean_income_thousands = mean_income / 1000)
+```
+
+3\. In what follows, we would like to keep only the following variables:
+
+-   county identifiers:
+
+    -   `NAME`
+    
+    -   `GEO_ID`
+
+-   economic characteristics:
+
+    -   percentage unemployment rate: `pct_unemp_rate`
+
+    -   average annual income in thousands of dollars: `mean_income_thousands`
+    
+    -   percentage share of manufacturing: `pct_manufac`
+    
+-   educational attainment: 
+
+    -   percentage share of individuals with a bachelor degree: `pct_bachelor`
+    
+-   demographic characteristics:
+
+    -   percentage share of African Americans: `pct_afam`
+    
+    -   percentage share of individuals above 62: `pct_age_above_62`
+    
+    -   percentage share of females: `pct_female`
+    
+    -   size of the county in thousands of individuals: `county_size_thousands`
+
+Use `select` to keep only the variables listed above.
+
+```{r q7.3, echo=TRUE, eval= FALSE}
+acs_2019_covariates <- acs_2019_covariates %>%
+  select(
+    NAME,
+    GEO_ID,
+    pct_unemp_rate,
+    mean_income_thousands,
+    pct_manufac,
+    pct_bachelor,
+    pct_afam,
+    pct_age_above_62,
+    pct_female,
+    county_size_thousands
+  )
+```
+
+4\. What is the `GEO_ID` of the county whose `NAME` is "Fleming County, Kentucky"
+in the `acs_2019_covariates` `data.frame`?
+
+```{r q7.4, echo=TRUE, eval= FALSE}
+acs_2019_covariates %>% 
+  filter(NAME == "Fleming County, Kentucky") %>% 
+  select(GEO_ID)
+```
+
+**0500000US21069**
+
+5<span style="color: red;">\*</span>. The geographical ID of the county
+is different to what we had last time! You might have noticed that this
+time, the 5-digit FIPS code is preceded by a prefix: "0500000US". We
+want to extract the FIPS code from this geographic identifier.
+
+Create a new variable, called `county_fips_clean` which contains only
+the 5 last characters of the `GEO_ID` variable. Use the `substr()`
+function. This function extracts a substring from a character string.
+You need to give it the original string, and the position of the first
+and last character of the substring. Example:
+`substr("abcde", 2, 4) = "bcd"`, i.e. you get letters 2 to 4. Here we
+want to extract characters 10 to 14 of the `GEO_ID` variable. As with
+`as.numeric` you have to create the variable using the relevant `dplyr`
+verb.
+
+```{r q7.5, echo=TRUE, eval= TRUE}
+acs_2019_covariates <- acs_2019_covariates %>%
+  mutate(county_fips_clean = substr(GEO_ID, 10, 14))
+```
+
+6<span style="color: red;">\*</span>. Now that our covariates data is
+tidy, we can finally merge it with the elections data. Merge
+`elections_2020_clean` and `acs_2019_covariates` using `left_join`. Note:
+`elections_2020_clean` needs to be the first argument). Create a new
+object called `elections_2020_covariates`.
+
+```{r q7.6, echo=TRUE, eval= TRUE}
+elections_2020_covariates <- left_join(elections_2020_clean, acs_2019_covariates)
+```
+
+
+## Regression analysis [8 points]
+
+1<span style="color: red;">\*</span>. In the regression analysis, we
+will only focus on the votes obtained by Donald Trump.
+
+1.   Filter `elections_2020_covariates` to keep only the observations
+    with the votes for Donald Trump.
+
+2.   Keep only the following variables: 
+
+  -   county and state identifiers: `state`, `state_po`, `county_name`, `county_fips_clean` 
+    
+  -   percentage vote shares: `pct_votes`
+    
+  -   covariates:
+    
+      -   economic characteristics:
+
+      -   percentage unemployment rate: `pct_unemp_rate`
+        
+      -   average annual income in thousands of dollars: `mean_income_thousands`
+            
+      -   percentage share of manufacturing: `pct_manufac`
+            
+  -   educational attainment: 
+  
+      -   percentage share of individuals with a bachelor degree: `pct_bachelor`
+            
+  -   demographic characteristics:
+        
+      -   percentage share of African Americans: `pct_afam`
+            
+      -   percentage share of individuals above 62: `pct_age_above_62`
+            
+      -   percentage share of females: `pct_female`
+            
+      -   size of the county in thousands of individuals: `county_size_thousands`
+        
+3.   Rename `pct_votes` -\> `pct_votes_trump`.
+
+Create a new object called `elections_2020_reg_trump` for this task.
+
+```{r q8.1, echo=TRUE, eval= TRUE}
+elections_2020_reg_trump <- elections_2020_covariates %>% 
+  filter(candidate == "DONALD J TRUMP") %>% 
+  select(
+    state,
+    state_po,
+    county_name,
+    county_fips_clean,
+    pct_votes,
+    pct_unemp_rate,
+    mean_income_thousands,
+    pct_manufac,
+    pct_bachelor,
+    pct_afam,
+    pct_age_above_62,
+    pct_female,
+    county_size_thousands
+  ) %>%
+  rename(pct_votes_trump = pct_votes)
+```
+
+**Support time:** If you are not confident that your answers to the
+necessary red-starred questions are all correct, you can now download a
+pre-cleaned dataset
+[here](https://www.dropbox.com/scl/fi/jb12jfyxaqq9pl3ega04w/elections_2020_reg_trump.RData?rlkey=nyebnulvx5p9eyk761wqmaqtx&dl=0).
+This file contains the data you *should* have arrived to after all these
+questions. This means that even if you made mistakes before, you can get
+a fresh start for the regressions and do them correctly. We will not
+penalise you for using this data.
+
+If you choose to use this option, you can load the
+`elections_2020_reg_trump.RData` file you just downloaded by using the
+`load()` function. Replace `eval = FALSE` by `eval = TRUE`.
+
+```{r q8.support, echo = TRUE, eval = FALSE}
+load("pre_cleaned_dataset_for_regression_analysis/elections_2020_reg_trump.RData")
+
+```
+
+2\. Use the `skim()` function from the `skimr` package to obtain summary
+statistics for `pct_votes_trump`, `pct_unemp_rate`, `mean_income_thousands`, `pct_manufac`, `pct_bachelor`, `pct_afam`, `pct_age_above_62`, `pct_female`, `county_size_thousands`.
+
+```{r q8.2, echo = TRUE, eval = FALSE}
+skim(elections_2020_reg_trump %>%
+  select(
+    pct_votes_trump,
+    pct_unemp_rate,
+    mean_income_thousands,
+    pct_manufac,
+    pct_bachelor,
+    pct_afam,
+    pct_age_above_62,
+    pct_female,
+    county_size_thousands
+  ))
+```
+
+We can see that there are some missing values. If you want, you can look at
+which counties have missing data but otherwise, we'll just ignore them
+for this midterm.
+
+3\. To facilitate plotting we will reshape the data in long format. (The
+difference between long and wide data is explained in this
+[article](https://www.statology.org/long-vs-wide-data/).) We are going
+to use the `pivot_longer()` function from the `tidyverse` package to
+reshape the data. You can find examples of how the `pivot_longer()`
+function works by typing `?pivot_longer` in your console. You can also
+find information and examples about `pivot_longer` and its associated
+function `pivot_wider`
+[here](https://tidyr.tidyverse.org/articles/pivot.html)
+
+For our purposes we will use the following 4 arguments in
+`pivot_longer()`:
+
+-   `data = elections_2020_reg_trump` (notice that if you use the `%>%`
+    pipe you don't need to specify the data argument);
+-   `cols = c("pct_unemp_rate", "mean_income_thousands", "pct_manufac", "pct_bachelor", "pct_afam", "pct_age_above_62", "pct_female", "county_size_thousands")`.
+    These are the columns to be reshaped.;
+-   `names_to = "covariate"`. This is the name of a new variable to be
+    created, where we will store the name of the covariate;
+-   `values_to = "value"` This is the name of a new variable to be
+    created, where we will store the values of the covariates.
+
+If this is somewhat unclear to you, simply run the code and check how it
+differs from the previous dataset. This should clear things up.
+
+Create a new object `elections_2020_plot_trump` for this task. View the
+created dataframe to ensure it looks as expected.
+
+```{r q8.3, echo=TRUE, eval= TRUE}
+elections_2020_plot_trump <- elections_2020_reg_trump %>% 
+  pivot_longer(cols = c("pct_unemp_rate", "mean_income_thousands", "pct_manufac", "pct_bachelor", "pct_afam", "pct_age_above_62", "pct_female", "county_size_thousands"),
+               names_to = "covariate",
+               values_to = "value")
+
+```
+
+4\. Produce 8 scatterplots showing the relationship between the vote percentage 
+for Donald Trump and each of our 8 covariates by running the following code.
+Replace `eval = FALSE` by `eval = TRUE` to see the scatterplots. Remember it is an important step to visualize your data before running any regressions.
+
+```{r q8.4, echo = TRUE, eval = TRUE}
+trump_graph <- 
+  elections_2020_plot_trump %>%
+    filter(covariate %in% c("pct_unemp_rate", "mean_income_thousands", "pct_manufac", "pct_bachelor", "pct_afam", "pct_age_above_62", "pct_female", "county_size_thousands")) %>% 
+    ggplot(aes(x = value, y = pct_votes_trump)) +
+    scale_y_continuous(limits = c(0,100)) + #ylim(0,100) + #alternatively
+    geom_point(size = 0.2) +
+    facet_wrap(vars(covariate), nrow = 3, scales = "free") +
+    labs(y = "% of vote") +
+    theme_bw(base_size = 14)
+    #facet_wrap(~ covariate, nrow = 3, scales = "free") + #facet_wrap(~ covariate, nrow = 3, scales = "free_x") + #alternatively
+trump_graph
+
+```
+
+5\. Add a regression line on these plots using the `geom_smooth` layer
+to better see the relationship's sign. Set the argument `method` to
+`"lm"` (for linear model) and `se` to `FALSE` (so that it does not
+display a confidence interval around the regression line; we'll discuss
+this towards the end of the course but you can set the argument to
+`TRUE` to see what it does).
+
+```{r q8.5, echo = TRUE, eval = FALSE}
+trump_graph <- trump_graph + 
+  geom_smooth(method = "lm", se = FALSE, color = "blue")
+trump_graph
+```
+
+6\. From the graphs, is the relationship between the different
+covariates and Donald Trump's vote share positive or negative? Rather
+strong or rather weak?
+
+**Strong negative relationships are visible for pct_bachelor, pct_afam, and county_size_thousands. Moderate negative relationships appear for pct_female, mean_income_thousands, and pct_unemp_rate. Positive relationships are observed for pct_age_above_62 and pct_manufac, though these associations are relatively weak.**
+
+7\. We are interested in the association between county-level unemployment rate `pct_unemp_rate` and Donald Trump's vote share.
+
+For this purpose, we will consider the following regressions:
+
+-   `reg1`: simple linear regression of Trump's percentage vote share `pct_votes_trump` on 
+    
+    -   percentage unemployment rate `pct_unemp_rate`
+        
+-   `reg2`: multiple linear regression of Trump's percentage vote share `pct_votes_trump` on 
+    
+    -   percentage unemployment rate `pct_unemp_rate`
+        
+    -   average annual income in thousands of dollars: `mean_income_thousands`
+            
+    -   percentage share of manufacturing: `pct_manufac`
+    
+-   `reg3`: multiple linear regression of Trump's percentage vote share `pct_votes_trump` on 
+    
+    -   percentage unemployment rate `pct_unemp_rate`
+        
+    -   average annual income in thousands of dollars: `mean_income_thousands`
+            
+    -   percentage share of manufacturing: `pct_manufac`
+        
+    -   percentage share of individuals with a bachelor degree: `pct_bachelor`
+
+-   `reg4`: multiple linear regression of Trump's percentage vote share `pct_votes_trump` on 
+    
+    -   percentage unemployment rate `pct_unemp_rate`
+        
+    -   average annual income in thousands of dollars: `mean_income_thousands`
+            
+    -   percentage share of manufacturing: `pct_manufac`
+        
+    -   percentage share of individuals with a bachelor degree: `pct_bachelor`
+
+    -   percentage share of African Americans: `pct_afam`
+        
+    -   percentage share of individuals above 62: `pct_age_above_62`
+        
+    -   percentage share of females: `pct_female`
+        
+    -   size of the county in thousands of individuals: `county_size_thousands`
+
+To sum up, `reg1` is a simple linear regression of Trump's vote percentage on the county-level unemployment rate without controlling for anything. 
+`reg2` differs from `reg1` in that we include other county-level economic characteristics (average income and manufacturing share) as control variables.   
+`reg3` differs from `reg2` in that on top of controlling for county-level economic characteristics, we include the percentage of Bachelor degree holders as a control variable.
+Finally, `reg4` differs from `reg3` in that in addition to controlling for county-level economic characteristics and the percentage of Bachelor degree holders, we include other county-level demographic characteristics (gender, age, race) as control variables.
+
+For this question you should use `elections_2020_reg_trump` as the data source.\
+Run all 4 regressions (`reg1`, `reg2`, `reg3`, `reg4`) and use the `export_summs()` function from the `jtools` package to see the
+results from all four regressions side by side. 
+Within `export_summs()`, you can set model names to the dependent variable (in our case `pct_votes_trump`) by adding `model.names = c(rep("pct_votes_trump",4))`.
+
+```{r q8.7, echo = TRUE, eval = TRUE}
+reg1 <- lm(pct_votes_trump ~ pct_unemp_rate, data = elections_2020_reg_trump)
+
+reg2 <- lm(pct_votes_trump ~ pct_unemp_rate + mean_income_thousands + pct_manufac, 
+           data = elections_2020_reg_trump)
+
+reg3 <- lm(pct_votes_trump ~ pct_unemp_rate + mean_income_thousands + pct_manufac + pct_bachelor, 
+           data = elections_2020_reg_trump)
+
+reg4 <- lm(pct_votes_trump ~ pct_unemp_rate + mean_income_thousands + pct_manufac + 
+             pct_bachelor + pct_afam + pct_age_above_62 + pct_female + county_size_thousands, 
+           data = elections_2020_reg_trump)
+
+export_summs(reg1, reg2, reg3, reg4, model.names = c(rep("pct_votes_trump",4)))
+```
+
+Don't pay attention to the stars next to the coefficients and to the
+number in parenthesis below the coefficients, we'll get to them later on
+in the course.
+
+8\. What is the interpretation of the coefficients for `pct_unemp_rate` in `reg1` and `reg2`? Be precise.
+
+**In reg1, on average, a one percentage point increase in the county-level unemployment rate (pct_unemp_rate) is associated with a 1.38 percentage point decrease in Trump’s vote share.**
+
+**In reg2, holding all other variables constant, a one percentage point increase in the county-level unemployment rate (pct_unemp_rate) is associated, on average, with a 2.57 percentage point decrease in Trump’s vote share.** 
+
+9\. What is the interpretation of each of the coefficients in `reg4`? Be precise.
+
+**Holding all other variables constant, a one percentage point increase in unemployment rate (pct_unemp_rate) is associated, on average, with a 1.51 percentage point decrease in Trump’s vote share.**
+
+**A one thousand dollar increase in average annual income (mean_income_thousands) is associated with a 0.03 percentage point increase in Trump’s vote share.**
+
+**A one percentage point increase in the share of manufacturing employment (pct_manufac) is associated with a 0.16 percentage point increase in Trump’s vote share.**
+
+**A one percentage point increase in the share of individuals with a bachelor’s degree (pct_bachelor) is associated with a 1.08 percentage point decrease in Trump’s vote share.**
+
+**A one percentage point increase in the share of African American residents (pct_afam) is associated with a 0.41 percentage point decrease in Trump’s vote share.**
+
+**A one percentage point increase in the share of individuals above age 62 (pct_age_above_62) is associated with a 0.04 percentage point increase in Trump’s vote share.**
+
+**A one percentage point increase in the share of females (pct_female) is associated with a 0.12 percentage point increase in Trump’s vote share.**
+
+**A one-thousand-person increase in county population size (county_size_thousands) is associated with a 0.01 percentage point decrease in Trump’s vote share.**
+
+10\. What share of the variance in Donald Trump's vote percentage is each model able to explain? How does it vary across the four regressions?
+
+**reg1 – 5%, reg2 – 26%, reg3 – 46%, reg4 – 59%**
+**The share of explained variance increases as more relevant covariates are added.**
+
+11\. Does a higher R-square in `reg4` mean that it is a better model than the other 3 regressions?
+
+**Not necessarily; by construction, R-square will always increase when a new regressor is added to the regression.**
+
+12\. How does the coefficient for `pct_unemp_rate` change from `reg1` to `reg2`? What does this suggest regarding the association between the economic controls (`mean_income_thousands`, `pct_manufac`) included in `reg2` and our main regressor `pct_unemp_rate` ? 
+
+**In reg1, the coefficient is –1.38, while in reg2 it becomes –2.57 after controlling for mean_income_thousands and pct_manufac, indicating a larger negative effect. By omitting these variables in reg1, the negative effect of unemployment on Trump’s vote share is underestimated. Once these economic controls are included in reg2, the bias is reduced, and the coefficient for unemployment becomes larger in magnitude (more negative).**
+
+
+13\. How does the coefficient for `pct_unemp_rate` change from `reg3` to `reg4`? What does this suggest regarding the association between the economic controls ( especially `pct_afam`, `pct_age_above_62`, `pct_female` ) and our main regressor `pct_unemp_rate` ? 
+
+**The coefficient changes from –2.63 in reg3 to –1.51 in reg4. Omitting these economic variables in reg3 results in an overestimation of the negative effect of pct_unemp_rate. By controlling for them in reg4, this negative bias is reduced, and the coefficient becomes less negative.**
+
+
+14\. Can you interpret the coefficient for `pct_unemp_rate` in `reg4` causally? Why (not)? How would you go about trying to assess whether the unemployment rate at the county level has a causal impact on the vote percentage for Donald Trump?
+
+**No; there may be unobserved factors that influence both pct_unemp_rate and pct_votes_trump. To better assess the causality, we would need a situation where unemployment changes for reasons unrelated to politics, allowing us to compare counties in a way that isolates the effect of unemployment.**
+
+# Well done!
+
+And that's it for this midterm! We hope you had fun, or at least *some*
+fun, doing it and that you improved your `R` skills. We also hope you
+got a sense of what "real" data looks like and how it can be tamed by
+using the great tools that `R` provides.
+
+::: {.tocify-extend-page data-unique="tocify-extend-page" style="height: 0;"}
+:::
